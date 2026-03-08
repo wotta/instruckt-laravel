@@ -50,11 +50,13 @@ final class Toolbar extends Component
         // 2. Local node_modules (if npm installed)
         $nodeModule = base_path('node_modules/instruckt/dist/instruckt.iife.js');
         if (file_exists($nodeModule)) {
-            // Copy to public on first use so it's web-accessible
             $publicPath = public_path('vendor/instruckt/instruckt.iife.js');
-            if (! file_exists($publicPath) || filemtime($nodeModule) > filemtime($publicPath)) {
-                @mkdir(dirname($publicPath), 0755, true);
-                copy($nodeModule, $publicPath);
+            // If public path is a symlink (e.g. to local instruckt dist), don't overwrite
+            if (! is_link($publicPath)) {
+                if (! file_exists($publicPath) || filemtime($nodeModule) > filemtime($publicPath)) {
+                    @mkdir(dirname($publicPath), 0755, true);
+                    copy($nodeModule, $publicPath);
+                }
             }
 
             return asset('vendor/instruckt/instruckt.iife.js');

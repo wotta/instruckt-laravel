@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Instruckt\Laravel\Components\Toolbar;
 use Instruckt\Laravel\Console\InstallCommand;
+use Instruckt\Laravel\Console\RunAgentServerCommand;
 use Instruckt\Laravel\Http\Controllers\AnnotationController;
 
 final class InstrucktServiceProvider extends ServiceProvider
@@ -27,7 +28,7 @@ final class InstrucktServiceProvider extends ServiceProvider
         $this->registerMcpRoutes();
 
         if ($this->app->runningInConsole()) {
-            $this->commands([InstallCommand::class]);
+            $this->commands([InstallCommand::class, RunAgentServerCommand::class]);
         }
     }
 
@@ -47,6 +48,7 @@ final class InstrucktServiceProvider extends ServiceProvider
                 Route::post('annotations', [AnnotationController::class, 'store'])->name('annotations.store');
                 Route::patch('annotations/{id}', [AnnotationController::class, 'update'])->name('annotations.update');
                 Route::get('screenshots/{filename}', [AnnotationController::class, 'screenshot'])->name('screenshots.show');
+                Route::post('run', [AnnotationController::class, 'run'])->name('run');
             });
     }
 

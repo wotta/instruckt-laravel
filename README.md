@@ -2,7 +2,7 @@
 
 Laravel package for [instruckt](https://github.com/joshcirre/instruckt) — visual feedback for AI coding agents. Provides the backend API, MCP tools, JSON file storage, and a Blade toolbar component.
 
-Users annotate elements in the browser, annotations are copied as structured markdown, and your AI agent can also read them via MCP.
+Users annotate elements in the browser, annotations are copied as structured markdown, and your AI agent can also read them via MCP. You can trigger a configured local CLI agent (e.g. cursor-agent, claude, gemini, codex) from the toolbar Run button.
 
 ## Requirements
 
@@ -79,6 +79,17 @@ return [
     // Only enabled in local env by default
     'enabled' => (bool) env('INSTRUCKT_ENABLED', env('APP_ENV') === 'local'),
 
+    // Run button: run.command (in-process) or run.host_runner_url (Docker)
+    'run' => [
+        'enabled' => (bool) env('INSTRUCKT_RUN_ENABLED', false),
+        'command' => env('INSTRUCKT_RUN_COMMAND', ''),
+        'host_runner_url' => env('INSTRUCKT_RUN_HOST_RUNNER_URL', ''),
+        'agent_binary' => env('INSTRUCKT_RUN_AGENT_BINARY', 'cursor-agent'),
+        'cwd' => env('INSTRUCKT_RUN_CWD', base_path()),
+        'timeout' => (int) env('INSTRUCKT_RUN_TIMEOUT', 120),
+        'max_markdown_length' => (int) env('INSTRUCKT_RUN_MAX_MARKDOWN_LENGTH', 50000),
+    ],
+
     // API route prefix
     'route_prefix' => env('INSTRUCKT_ROUTE_PREFIX', 'instruckt'),
 
@@ -104,6 +115,41 @@ return [
     ],
 ];
 ```
+
+### Run button
+
+The Run button sends the current annotations as markdown to the backend. Either run the agent **in the same process** or **via a listener on your host** (for Docker).
+
+**Same machine (PHP can run the agent):** set a shell command; markdown is piped to stdin.
+
+```env
+INSTRUCKT_RUN_ENABLED=true
+INSTRUCKT_RUN_COMMAND="cursor-agent -f --model auto -p \"$(cat)\""
+INSTRUCKT_RUN_CWD=/path/to/project
+```
+
+**Docker / Sail:** use the host listener (see below).
+
+#### Run button from Docker / Sail
+
+When the app runs inside Docker (e.g. Laravel Sail), the container cannot see your host’s `cursor-agent` binary. Use the **host runner** so the agent runs on your machine with your PATH and Cursor auth:
+
+1. **On your host** (outside the container), from your **Laravel app directory** (where `artisan` lives), run:
+
+   ```bash
+   php artisan instruckt:run-agent-server
+   ```
+
+   Optional: `--port=31337` (default 31337). The command listens for POSTs and runs `cursor-agent` with the body as the prompt. Debug lines (connections, request size, CLI command) are printed to stderr.
+
+2. **In your app’s `.env`** (read by the container), set:
+
+   ```env
+   INSTRUCKT_RUN_ENABLED=true
+   INSTRUCKT_RUN_HOST_RUNNER_URL=http://host.docker.internal:31337
+   ```
+
+   The Run button will POST markdown to that URL; the listener runs the agent on your host.
 
 ## Toolbar Component (Alternative)
 
@@ -133,8 +179,9 @@ You can also set colors and keys globally via `config/instruckt.php` instead of 
 2. Users click elements and leave feedback — optionally capturing screenshots
 3. Annotations auto-copy as structured markdown to the clipboard for pasting into AI agents
 4. Annotations are persisted to `storage/app/_instruckt/` via API routes
-5. On page reload (including Vite rebuilds), annotations are loaded from the API and markers reappear
-6. AI agents can read pending annotations via MCP tools and resolve them after fixing
+5. Optional: user clicks Run in the toolbar to send markdown and trigger the configured local CLI agent
+6. On page reload (including Vite rebuilds), annotations are loaded from the API and markers reappear
+7. AI agents can read pending annotations via MCP tools and resolve them after fixing
 
 ## API Routes
 
@@ -145,6 +192,7 @@ All routes are registered under the configured prefix (default: `/instruckt`):
 | GET | `/instruckt/annotations` | List all annotations |
 | POST | `/instruckt/annotations` | Create annotation |
 | PATCH | `/instruckt/annotations/{id}` | Update annotation |
+| POST | `/instruckt/run` | Trigger configured local CLI agent run (`202`) |
 
 ## Keyboard Shortcuts
 
