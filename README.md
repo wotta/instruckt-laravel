@@ -22,38 +22,6 @@ php artisan instruckt:install
 
 This publishes the config, copies the JS assets, and automatically configures MCP for any detected AI agents (Claude Code, Cursor, Codex, OpenCode, GitHub Copilot).
 
-## Uninstall
-
-To cleanly remove instruckt from your project:
-
-```bash
-php artisan instruckt:uninstall
-```
-
-This scans for all instruckt artifacts, shows you what will be removed, and asks for confirmation before proceeding. It reverses everything the install command did:
-
-- Published config (`config/instruckt.php`)
-- JS toolbar code from your entry point (`resources/js/app.js`, etc.)
-- Blade toolbar component from layout files
-- MCP server entries from all agent configs (`.mcp.json`, `.cursor/mcp.json`, etc.)
-- Agent skill directories
-- Stored annotations and screenshots (`storage/app/instruckt/`)
-- The `instruckt` npm package
-
-After uninstalling, remove the Composer package:
-
-```bash
-composer remove joshcirre/instruckt-laravel --dev
-```
-
-Options:
-
-| Flag | Description |
-|------|-------------|
-| `--force` | Skip the confirmation prompt |
-| `--keep-config` | Keep `config/instruckt.php` |
-| `--keep-npm` | Keep the npm package installed |
-
 ## Setup
 
 Add the import to your `resources/js/app.js` (or `.ts`, `.tsx`, `.jsx`):
@@ -193,6 +161,38 @@ Default shortcuts (customizable via `keys` config):
 ## Secure Context Note
 
 `navigator.clipboard` requires a secure context (HTTPS or localhost). On `http://*.test` domains, auto-copy on annotation submit is skipped. Use the copy button in the toolbar which uses a fallback method.
+
+## Uninstall
+
+To cleanly remove instruckt from your project:
+
+```bash
+php artisan instruckt:uninstall
+```
+
+This scans for all instruckt artifacts, shows you what will be removed, and asks for confirmation before proceeding. It reverses everything the install command did:
+
+- Published config (`config/instruckt.php`)
+- JS toolbar code from your entry point (`resources/js/app.js`, etc.)
+- Blade toolbar component from layout files
+- MCP server entries from all agent configs (`.mcp.json`, `.cursor/mcp.json`, etc.)
+- Agent skill directories
+- Stored annotations and screenshots (`storage/app/instruckt/`)
+- The `instruckt` npm package
+
+After uninstalling, remove the Composer package:
+
+```bash
+composer remove joshcirre/instruckt-laravel --dev
+```
+
+Options:
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip the confirmation prompt |
+| `--keep-config` | Keep `config/instruckt.php` |
+| `--keep-npm` | Keep the npm package installed |
 
 ## License
 
