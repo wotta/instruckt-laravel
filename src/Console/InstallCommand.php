@@ -248,7 +248,7 @@ final class InstallCommand extends Command
         // Blade adapter provides view-to-file mapping for elements outside JS components.
         $adapters = $jsFramework ? "'{$jsFramework}', 'blade'" : "'blade'";
         $adaptersOpt = ", adapters: [{$adapters}]";
-        $snippet = "\n// Instruckt — visual feedback toolbar\nimport { Instruckt } from 'instruckt';\nnew Instruckt({ endpoint: '/{$routePrefix}'{$adaptersOpt} });\n";
+        $snippet = "\n// Instruckt — visual feedback toolbar (only loaded in dev)\nif (import.meta.env.DEV) {\n    import('instruckt').then(({ Instruckt }) => new Instruckt({ endpoint: '/{$routePrefix}'{$adaptersOpt} }));\n}\n";
 
         File::append($appPath, $snippet);
         $this->components->twoColumnDetail($relative, 'injected');
