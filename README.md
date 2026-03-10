@@ -26,16 +26,32 @@ To uninstall, run `php artisan instruckt:uninstall`. See [Uninstall](#uninstall)
 
 ## Setup
 
-Add the import to your `resources/js/app.js` (or `.ts`, `.tsx`, `.jsx`):
+The install command auto-detects your JS entry point and adds a dev-only import:
 
 ```js
-import { Instruckt } from 'instruckt';
-new Instruckt({ endpoint: '/instruckt' });
+// Instruckt — visual feedback toolbar (only loaded in dev)
+if (import.meta.env.DEV) {
+    import('instruckt').then(({ Instruckt }) => new Instruckt({ endpoint: '/instruckt' }));
+}
 ```
 
-The install command auto-detects your setup and adds this for you. This works for **all frameworks** — Livewire, Inertia (Vue/React/Svelte), or plain Blade — since Laravel apps already have a Vite JS entrypoint.
+This uses Vite's `import.meta.env.DEV` flag, which means:
+- **`bun run dev` / `npm run dev`** — toolbar loads normally
+- **`bun run build` / `npm run build`** — instruckt is completely tree-shaken out of the production bundle (zero bytes shipped)
+
+This works for **all frameworks** — Livewire, Inertia (Vue/React/Svelte), or plain Blade — since Laravel apps already have a Vite JS entrypoint.
 
 > **Alternative: Blade component** — If you prefer not to touch your JS files, you can use `<x-instruckt-toolbar />` in your layout instead. See [Toolbar Component](#toolbar-component) below.
+
+### Manual Setup
+
+If you need to add the import manually (or the install command didn't detect your entry point), add this to your `resources/js/app.js` (or `.ts`, `.tsx`, `.jsx`):
+
+```js
+if (import.meta.env.DEV) {
+    import('instruckt').then(({ Instruckt }) => new Instruckt({ endpoint: '/instruckt' }));
+}
+```
 
 ### Connect Your AI Agent
 
@@ -115,6 +131,8 @@ If you'd rather not add a JS import, you can use the Blade component. Add it to 
 <x-instruckt-toolbar />
 ```
 
+The component is automatically gated behind `config('instruckt.enabled')`, which defaults to `true` only when `APP_ENV=local`. It won't render anything in production — no extra checks needed.
+
 The component loads the IIFE build and accepts optional attributes:
 
 ```blade
@@ -128,6 +146,19 @@ The component loads the IIFE build and accepts optional attributes:
 ```
 
 You can also set colors and keys globally via `config/instruckt.php` instead of passing them as component attributes.
+
+## Production Safety
+
+Instruckt is designed as a dev-only tool with multiple layers of protection:
+
+| Layer | JS Method | Blade Method |
+|-------|-----------|--------------|
+| **Frontend** | `import.meta.env.DEV` — code is tree-shaken out of production Vite builds entirely | `@if(config('instruckt.enabled'))` — component doesn't render |
+| **Backend routes** | Only registered when `config('instruckt.enabled')` is `true` | Same |
+| **Middleware** | Only active when enabled | Same |
+| **Config default** | `enabled` defaults to `true` only when `APP_ENV=local` | Same |
+
+Even if you accidentally install instruckt as a non-dev Composer dependency, the toolbar won't appear in production as long as you build your assets with `vite build` (JS method) or have `APP_ENV=production` (Blade method).
 
 ## How It Works
 
