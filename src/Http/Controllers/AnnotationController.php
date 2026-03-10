@@ -6,6 +6,7 @@ namespace Instruckt\Laravel\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Instruckt\Laravel\SourceResolver;
 use Instruckt\Laravel\Store;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -54,7 +55,32 @@ final class AnnotationController
 
         $annotation = Store::updateAnnotation($id, $data);
 
+        if (! $annotation) {
+            abort(404, 'Annotation not found.');
+        }
+
         return response()->json($annotation);
+    }
+
+    /**
+     * Resolve a component name to its source file path.
+     *
+     * POST /instruckt/resolve-source
+     * { "framework": "livewire", "component": "pages::dashboard" }
+     */
+    public function resolveSource(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'framework' => 'required|string|in:livewire,blade,vue,svelte,react',
+            'component' => 'required|string|max:255',
+        ]);
+
+        $result = SourceResolver::enrich([
+            'framework' => $data['framework'],
+            'component' => $data['component'],
+        ]);
+
+        return response()->json($result);
     }
 
     public function screenshot(string $filename): BinaryFileResponse

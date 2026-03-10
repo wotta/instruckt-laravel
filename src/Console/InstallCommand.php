@@ -244,7 +244,10 @@ final class InstallCommand extends Command
             return true;
         }
 
-        $adaptersOpt = $jsFramework ? ", adapters: ['{$jsFramework}']" : '';
+        // Always include 'blade' — every Laravel app uses Blade templates and the
+        // Blade adapter provides view-to-file mapping for elements outside JS components.
+        $adapters = $jsFramework ? "'{$jsFramework}', 'blade'" : "'blade'";
+        $adaptersOpt = ", adapters: [{$adapters}]";
         $snippet = "\n// Instruckt — visual feedback toolbar\nimport { Instruckt } from 'instruckt';\nnew Instruckt({ endpoint: '/{$routePrefix}'{$adaptersOpt} });\n";
 
         File::append($appPath, $snippet);
