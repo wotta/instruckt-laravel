@@ -192,13 +192,149 @@ final class InstallCommand extends Command
 
     private function injectToolbar(string $framework): void
     {
-        // Always prefer JS entry point (works for all frameworks including Livewire)
+        // Tier 1: Vite plugin (preferred — cleanest integration)
+        $viteConfig = $this->findViteConfig();
+
+        if ($viteConfig && $this->injectVitePlugin($viteConfig, $framework)) {
+            $this->injectVirtualImport();
+
+            return;
+        }
+
+        // Tier 2: Legacy JS snippet (no vite config, but has app.js)
         if ($this->injectJsToolbar($framework)) {
             return;
         }
 
-        // Fall back to Blade component if no JS entry point found
+        // Tier 3: Blade component fallback
         $this->injectBladeToolbar($framework);
+    }
+
+    // ── Vite plugin injection ────────────────────────────────────
+
+    private function findViteConfig(): ?string
+    {
+        $candidates = [
+            base_path('vite.config.ts'),
+            base_path('vite.config.js'),
+            base_path('vite.config.mts'),
+            base_path('vite.config.mjs'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (File::exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function injectVitePlugin(string $viteConfigPath, string $framework): bool
+    {
+        $contents = File::get($viteConfigPath);
+        $relative = str_replace(base_path().'/', '', $viteConfigPath);
+
+        if (str_contains($contents, 'instruckt/vite') || str_contains($contents, 'instruckt(')) {
+            $this->components->twoColumnDetail($relative, 'already configured');
+
+            return true;
+        }
+
+        // Need a plugins array to inject into
+        if (! preg_match('/plugins\s*:\s*\[/', $contents)) {
+            return false;
+        }
+
+        $routePrefix = config('instruckt.route_prefix', 'instruckt');
+
+        // Build adapters list — always include 'blade'
+        $jsFramework = match (true) {
+            str_starts_with($framework, 'inertia-') => str_replace('inertia-', '', $framework),
+            $framework === 'livewire' => 'livewire',
+            default => null,
+        };
+
+        $adapters = $jsFramework ? "'{$jsFramework}', 'blade'" : "'blade'";
+
+        // Add import after the last existing import statement
+        $importLine = "import instruckt from 'instruckt/vite'";
+
+        if (preg_match('/^import\s.+$/m', $contents)) {
+            // Insert after the last import line
+            $contents = preg_replace(
+                '/(^import\s.+$)(?![\s\S]*^import\s)/m',
+                "$1\n{$importLine}",
+                $contents,
+                1
+            );
+        } else {
+            $contents = $importLine."\n".$contents;
+        }
+
+        // Add plugin call as the first entry in the plugins array
+        $pluginCall = "instruckt({ server: false, endpoint: '/{$routePrefix}', adapters: [{$adapters}], mcp: true }),";
+        $contents = preg_replace(
+            '/(plugins\s*:\s*\[)(\s*)/',
+            "$1$2{$pluginCall}\n        ",
+            $contents,
+            1
+        );
+
+        File::put($viteConfigPath, $contents);
+        $this->components->twoColumnDetail($relative, 'Vite plugin injected');
+
+        return true;
+    }
+
+    private function injectVirtualImport(): void
+    {
+        $candidates = [
+            resource_path('js/app.tsx'),
+            resource_path('js/app.ts'),
+            resource_path('js/app.jsx'),
+            resource_path('js/app.js'),
+        ];
+
+        $appPath = null;
+
+        foreach ($candidates as $candidate) {
+            if (File::exists($candidate)) {
+                $appPath = $candidate;
+
+                break;
+            }
+        }
+
+        if (! $appPath) {
+            return;
+        }
+
+        $contents = File::get($appPath);
+        $relative = str_replace(base_path().'/', '', $appPath);
+
+        if (str_contains($contents, 'instruckt')) {
+            $this->components->twoColumnDetail($relative, 'already configured');
+
+            return;
+        }
+
+        // Add virtual import after the last existing import statement
+        $importLine = "import 'virtual:instruckt'";
+
+        if (preg_match('/^import\s.+$/m', $contents)) {
+            $contents = preg_replace(
+                '/(^import\s.+$)(?![\s\S]*^import\s)/m',
+                "$1\n{$importLine}",
+                $contents,
+                1
+            );
+            File::put($appPath, $contents);
+        } else {
+            File::append($appPath, "\n{$importLine}\n");
+        }
+
+        $this->components->twoColumnDetail($relative, 'virtual import added');
     }
 
     /** @return bool Whether injection succeeded */

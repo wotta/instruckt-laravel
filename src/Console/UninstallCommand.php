@@ -53,6 +53,7 @@ final class UninstallCommand extends Command
         $this->newLine();
 
         $this->removeConfig();
+        $this->removeVitePlugin();
         $this->removeToolbarFromJs();
         $this->removeToolbarFromBlade();
         $this->removeMcpConfig();
@@ -80,6 +81,12 @@ final class UninstallCommand extends Command
     {
         if (! $this->option('keep-config') && File::exists(config_path('instruckt.php'))) {
             $this->found[] = ['Config', 'config/instruckt.php'];
+        }
+
+        foreach ($this->viteConfigCandidates() as $vitePath) {
+            if (File::exists($vitePath) && str_contains(File::get($vitePath), 'instruckt/vite')) {
+                $this->found[] = ['Vite plugin', $this->relative($vitePath)];
+            }
         }
 
         foreach ($this->jsEntryCandidates() as $appPath) {
@@ -148,6 +155,44 @@ final class UninstallCommand extends Command
         $this->components->twoColumnDetail('config/instruckt.php', '<fg=red>removed</>');
     }
 
+    // ── Vite plugin ────────────────────────────────────────────
+
+    private function removeVitePlugin(): void
+    {
+        foreach ($this->viteConfigCandidates() as $vitePath) {
+            if (! File::exists($vitePath)) {
+                continue;
+            }
+
+            $contents = File::get($vitePath);
+
+            if (! str_contains($contents, 'instruckt/vite') && ! str_contains($contents, 'instruckt(')) {
+                continue;
+            }
+
+            $relative = $this->relative($vitePath);
+
+            // Remove the import line
+            $cleaned = (string) preg_replace(
+                '/\s*import\s+instruckt\s+from\s+[\'"]instruckt\/vite[\'"]\s*;?\n?/',
+                "\n",
+                $contents
+            );
+
+            // Remove the plugin call (handles single-line instruckt({ ... }),)
+            $cleaned = (string) preg_replace(
+                '/\s*instruckt\(\s*\{[^}]*\}\s*\)\s*,?\n?/',
+                "\n",
+                $cleaned
+            );
+
+            if ($cleaned !== $contents) {
+                File::put($vitePath, $cleaned);
+                $this->components->twoColumnDetail($relative, '<fg=red>plugin removed</>');
+            }
+        }
+    }
+
     // ── JS toolbar injection ────────────────────────────────────
 
     private function removeToolbarFromJs(): void
@@ -172,13 +217,21 @@ final class UninstallCommand extends Command
                 $contents
             );
 
+            // Remove the import.meta.env.DEV wrapped block
+            $cleaned = (string) preg_replace(
+                '/\n*\/\/ Instruckt — visual feedback toolbar \(only loaded in dev\)\nif \(import\.meta\.env\.DEV\) \{\n\s*import\(\'instruckt\'\)\.then\([^)]*\)[^}]*\}\n*/',
+                "\n",
+                $cleaned
+            );
+
             // If the pattern didn't match (custom edits), try line-by-line removal
             if ($cleaned === $contents) {
                 $lines = explode("\n", $contents);
                 $filtered = array_filter($lines, function (string $line) {
                     $trimmed = trim($line);
 
-                    if ($trimmed === '// Instruckt — visual feedback toolbar') {
+                    if ($trimmed === '// Instruckt — visual feedback toolbar'
+                        || $trimmed === '// Instruckt — visual feedback toolbar (only loaded in dev)') {
                         return false;
                     }
 
@@ -187,6 +240,14 @@ final class UninstallCommand extends Command
                     }
 
                     if (str_contains($trimmed, 'new Instruckt(')) {
+                        return false;
+                    }
+
+                    if (str_contains($trimmed, "virtual:instruckt")) {
+                        return false;
+                    }
+
+                    if (str_contains($trimmed, "import('instruckt')")) {
                         return false;
                     }
 
@@ -336,6 +397,19 @@ final class UninstallCommand extends Command
     }
 
     // ── Shared data ─────────────────────────────────────────────
+
+    /**
+     * @return list<string>
+     */
+    private function viteConfigCandidates(): array
+    {
+        return [
+            base_path('vite.config.ts'),
+            base_path('vite.config.js'),
+            base_path('vite.config.mts'),
+            base_path('vite.config.mjs'),
+        ];
+    }
 
     /**
      * @return list<string>
